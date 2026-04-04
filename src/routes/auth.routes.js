@@ -1,17 +1,20 @@
 import express from "express";
-import authCtrl from "../controllers/auth.controller.js";
-import { auth } from "../middlewares/auth.middleware.js";
+import {
+  emailAuth,
+  googleAuth,
+  verifyOTP,
+  saveDOB,
+  refreshTokenHandler,
+} from "../controllers/auth.controller.js";
+
+import { protect } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/register", authCtrl.register);
-router.post("/login", authCtrl.login);
-router.post("/logout", auth, authCtrl.logout);
-router.post("/verify-email", authCtrl.verifyEmail);
-router.post("/resend-otp", authCtrl.resendOtp);
-router.post("/forgot-password", authCtrl.forgotPassword);
-router.post("/reset-password", authCtrl.resetPassword);
-router.post("/email", authCtrl.emailAuth);
-router.post("/verify-otp", authCtrl.verifyOtpLogin);
+router.post("/email", emailAuth);
+router.post("/google", googleAuth);
+router.post("/verify-otp", verifyOTP);
+router.post("/dob", protect, saveDOB);
+router.post("/refresh", refreshTokenHandler);
 
 export default router;

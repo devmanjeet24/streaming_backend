@@ -1,15 +1,16 @@
 import express from "express";
-import { auth } from "../middlewares/auth.middleware.js";
-import {
-  getProfile,
-  createProfile,
-  updateProfile,
-} from "../controllers/user.controller.js";
+import { updateProfile } from "../controllers/user.controller.js";
+import { protect } from "../middlewares/auth.middleware.js";
+import { upload } from "../config/multer.js";
 
 const router = express.Router();
 
-router.get("/profile", auth, getProfile);
-router.post("/profile", auth, createProfile);
-router.put("/profile", auth, updateProfile);
+// Profile Setup API
+router.put(
+  "/profile",
+  protect,
+  upload.single("avatar"),
+  updateProfile
+);
 
 export default router;

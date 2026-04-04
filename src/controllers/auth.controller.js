@@ -1,315 +1,296 @@
-import User from "../models/User.js";
-import { comparePassword, hashPassword } from "../utils/hash.js";
-import generateTokens  from "../utils/jwt.js";
-import generateOTP from "../utils/otp.js";
+import User from "../models/user.model.js";
+import { generateOTP } from "../utils/generateOTP.js";
+import { sendOTPEmail } from "../services/email.service.js";
+import {
+    generateAccessToken,
+    generateRefreshToken,
+} from "../services/token.service.js";
+import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-
-// Register 
-const register = async (req, res) => {
-    try {
-        const { email, password, username } = req.body;
-
-        if (!email || !password || !username) {
-            return res.status(400).json({
-                message: "All fields are required"
-            });
-        }
-
-        // ✅ FIXED
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({
-                message: "User already exists"
-            });
-        }
-
-        // ✅ FIXED typo
-        const hashedPassword = await hashPassword(password);
-        const otp = generateOTP();
-
-        const user = await User.create({
-            email,
-            password: hashedPassword,
-            username,
-            otp,
-            otpExpiry: Date.now() + 10 * 60 * 1000,
-        });
-
-        res.status(201).json({
-            message: "Registered successfully",
-            email: user.email,
-            username: user.username
-            // ❌ OTP removed (security)
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: "Server error"
-        });
-    }
-};
-
 export const emailAuth = async (req, res) => {
-  try {
-    const { email } = req.body;
+    try {
+        const { email } = req.body;
 
-    let user = await User.findOne({ email });
+        // ✅ Validation
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
 
-    const otp = generateOTP();
+        if (!email.includes("@")) {
+            return res.status(400).json({ message: "Invalid email" });
+        }
 
-    if (!user) {
-      user = await User.create({
-        email,
-        otp,
-        otpExpiry: Date.now() + 10 * 60 * 1000,
-      });
-    } else {
-      user.otp = otp;
-      user.otpExpiry = Date.now() + 10 * 60 * 1000;
-      await user.save();
+        let user = await User.findOne({ email });
+
+        // ✅ Register if not exists
+        if (!user) {
+            user = await User.create({ email });
+        }
+
+        // ✅ Generate OTP
+        const otp = generateOTP().toString();
+
+        user.otp = otp;
+        user.otpExpiry = Date.now() + 5 * 60 * 1000;
+
+        await user.save();
+
+        // ✅ Send Email
+        await sendOTPEmail(email, otp);
+
+        return res.status(200).json({
+            success: true,
+            message: "OTP sent successfully",
+        });
+
+    } catch (err) {
+        console.error("EMAIL AUTH ERROR:", err.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to send OTP",
+            error: err.message,
+        });
     }
-
-    return res.json({
-      message: "OTP sent",
-    });
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
 };
 
 
-// Login
-const login = async (req, res) => {
+
+export const googleAuth = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { token } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({
-                message: "Email and password are required",
-            });
+        if (!token) {
+            return res.status(400).json({ message: "Google token is required" });
         }
 
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({
-                message: "Invalid credentials",
-            });
-        }
-
-        const isMatch = await comparePassword(password, user.password);
-        if (!isMatch) {
-            return res.status(401).json({
-                message: "Invalid credentials",
-            });
-        }
-
-        const { accessToken, refreshToken } = generateTokens({
-            _id: user._id,
+        // const ticket = await client.verifyIdToken({
+        //   idToken: token,
+        //   audience: process.env.GOOGLE_CLIENT_ID,
+        // });
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
         });
+
+        const { email, sub } = ticket.getPayload();
+
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            user = await User.create({
+                email,
+                googleId: sub,
+                isVerified: true,
+            });
+        }
+
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
         user.refreshToken = refreshToken;
         await user.save();
 
-        res.status(200).json({
+        return res.status(200).json({
+            success: true,
             accessToken,
             refreshToken,
         });
 
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: "Server error",
-        });
-    }
-};
+    } catch (err) {
+        console.error("GOOGLE AUTH ERROR:", err.message);
 
-
-// Logout
-const logout = async (req, res) => {
-    try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({
-                message: "Unauthorized",
-            });
-        }
-
-        const user = await User.findById(req.user.id);
-
-        if (!user) {
-            return res.status(404).json({
-                message: "User not found",
-            });
-        }
-
-        user.refreshToken = null;
-        await user.save();
-
-        return res.status(200).json({
-            message: "Logged out successfully",
-        });
-
-    } catch (error) {
-        console.error(error);
         return res.status(500).json({
-            message: "Server error",
+            success: false,
+            message: "Google login failed",
+            error: err.message,
         });
     }
 };
 
 
-const verifyEmail = async (req, res) => {
+
+export const verifyOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
 
+        // ✅ Validation
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Email and OTP required" });
+        }
+
         const user = await User.findOne({ email });
 
-        if (!user) return res.status(404).json({ message: "User not found" });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
 
-        if (user.otp !== otp || user.otpExpiry < Date.now()) {
-            return res.status(400).json({ message: "Invalid or expired OTP" });
+        // ✅ FIX: string comparison
+        if (user.otp != otp) {
+            return res.status(400).json({ message: "Invalid OTP" });
+        }
+
+        if (user.otpExpiry < Date.now()) {
+            return res.status(400).json({ message: "OTP expired" });
         }
 
         user.isVerified = true;
         user.otp = null;
         user.otpExpiry = null;
 
-        await user.save();
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
-        res.json({ message: "Email verified successfully" });
-
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
-
-const resendOtp = async (req, res) => {
-    try {
-        const { email } = req.body;
-
-        const user = await User.findOne({ email });
-
-        if (!user) return res.status(404).json({ message: "User not found" });
-
-        const otp = generateOTP();
-
-        user.otp = otp;
-        user.otpExpiry = Date.now() + 10 * 60 * 1000;
+        user.refreshToken = refreshToken;
 
         await user.save();
 
-        res.json({ message: "OTP resent" });
+        return res.status(200).json({
+            success: true,
+            accessToken,
+            refreshToken,
+        });
 
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error("VERIFY OTP ERROR:", err.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "OTP verification failed",
+            error: err.message,
+        });
     }
 };
 
-export const verifyOtpLogin = async (req, res) => {
-  const { email, otp } = req.body;
 
-  const user = await User.findOne({ email });
 
-  if (!user || user.otp !== otp) {
-    return res.status(400).json({ message: "Invalid OTP" });
-  }
-
-  const { accessToken, refreshToken } = generateTokens(user);
-
-  return res.json({
-    accessToken,
-    refreshToken,
-    user,
-  });
-};
-
-const forgotPassword = async (req, res) => {
+export const saveDOB = async (req, res) => {
     try {
-        const { email } = req.body;
+        const { dob } = req.body;
+        const userId = req.user?.id;
 
-        const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "User not found" });
-
-        const otp = generateOTP();
-
-        user.otp = otp;
-        user.otpExpiry = Date.now() + 10 * 60 * 1000;
-
-        await user.save();
-
-        res.json({ message: "OTP sent for reset password" });
-
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-};
-
-const resetPassword = async (req, res) => {
-    try {
-        const { email, otp, newPassword } = req.body;
-
-        const user = await User.findOne({ email });
-
-        if (!user || user.otp !== otp || user.otpExpiry < Date.now()) {
-            return res.status(400).json({ message: "Invalid OTP" });
+        if (!dob) {
+            return res.status(400).json({ message: "DOB is required" });
         }
 
-        user.password = await hashPassword(newPassword);
-        user.otp = null;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.dob = dob;
 
         await user.save();
 
-        res.json({ message: "Password reset successful" });
+        return res.status(200).json({
+            success: true,
+            message: "DOB saved successfully",
+        });
 
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error("SAVE DOB ERROR:", err.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to save DOB",
+            error: err.message,
+        });
     }
 };
 
-export const googleLogin = async (req, res) => {
+
+
+export const refreshTokenHandler = async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        if (!token) {
+            return res.status(400).json({ message: "Refresh token required" });
+        }
+
+        const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
+
+        const user = await User.findById(decoded.id);
+
+        if (!user || user.refreshToken !== token) {
+            return res.status(401).json({ message: "Invalid refresh token" });
+        }
+
+        const newAccessToken = generateAccessToken(user);
+
+        return res.status(200).json({
+            success: true,
+            accessToken: newAccessToken,
+        });
+
+    } catch (err) {
+        console.error("REFRESH TOKEN ERROR:", err.message);
+
+        return res.status(401).json({
+            success: false,
+            message: "Token expired",
+        });
+    }
+};
+
+
+
+export const resendOTP = async (req, res) => {
+    console.log("🔥 RESEND OTP HIT"); 
   try {
-    const { token } = req.body;
+    const { email } = req.body;
 
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    // 🔐 Validation
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
-    const payload = ticket.getPayload();
-
-    let user = await User.findOne({ email: payload.email });
+    const user = await User.findOne({ email });
 
     if (!user) {
-      user = await User.create({
-        email: payload.email,
-        username: payload.name,
-        googleId: payload.sub,
-        authProvider: "google",
-        isVerified: true,
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // ⛔ Prevent spam (30 sec rule)
+    if (user.otpExpiry && user.otpExpiry > Date.now() - 30 * 1000) {
+      return res.status(429).json({
+        message: "Please wait before requesting OTP again",
       });
     }
 
-    const tokens = generateTokens(user);
+    // 🔢 Generate OTP
+    const otp = generateOTP();
 
-    return res.json(tokens);
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+
+    await user.save();
+
+    // 📧 Send email
+    await sendOTPEmail(email, otp);
+
+    console.log("RESEND OTP HIT");
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP resent successfully",
+    });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+    console.error("RESEND OTP ERROR FULL:", err);
 
-export default {
-    register,
-    login,
-    logout,
-    verifyEmail,
-    resendOtp,
-    forgotPassword,
-    resetPassword,
-    emailAuth,
-    verifyOtpLogin,
-    googleLogin
+    return res.status(500).json({
+      success: false,
+      message: "Failed to resend OTP",
+      error: err.message,
+    });
+  }
 };

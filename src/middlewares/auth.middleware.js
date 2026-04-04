@@ -1,23 +1,17 @@
 import jwt from "jsonwebtoken";
 
-export const auth = (req, res, next) => {
-    try {
-        const token = req.headers.authorization?.split(" ")[1];
+export const protect = (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
 
-        if (!token) {
-            return res.status(401).json({
-                message: "No token provided",
-            });
-        }
+    if (!token) return res.status(401).json({ message: "No token" });
 
-        const decoded = jwt.verify(token, process.env.ACCESS_SECRET);
+    const decoded = jwt.verify(token, process.env.ACCESS_SECRET);
 
-        req.user = decoded;
-        next();
+    req.user = decoded;
 
-    } catch (error) {
-        return res.status(401).json({
-            message: "Unauthorized",
-        });
-    }
+    next();
+  } catch (err) {
+    res.status(401).json({ message: "Unauthorized" });
+  }
 };
