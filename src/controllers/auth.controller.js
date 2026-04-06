@@ -168,42 +168,66 @@ export const verifyOTP = async (req, res) => {
 
 
 export const saveDOB = async (req, res) => {
-    try {
-        const { dob } = req.body;
-        const userId = req.user?.id;
+  try {
+    const { dob } = req.body;
+    const userId = req.user?.id;
 
-        if (!dob) {
-            return res.status(400).json({ message: "DOB is required" });
-        }
-
-        if (!userId) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        user.dob = dob;
-
-        await user.save();
-
-        return res.status(200).json({
-            success: true,
-            message: "DOB saved successfully",
-        });
-
-    } catch (err) {
-        console.error("SAVE DOB ERROR:", err.message);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to save DOB",
-            error: err.message,
-        });
+    // ✅ Validation
+    if (!dob) {
+      return res.status(400).json({ message: "DOB is required" });
     }
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // ✅ Convert DOB
+    const birthDate = new Date(dob);
+    const today = new Date();
+
+    if (isNaN(birthDate)) {
+      return res.status(400).json({ message: "Invalid DOB format" });
+    }
+
+    // ✅ Age calculation
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    
+    if (age < 18) {
+      return res.status(400).json({
+        message: "You must be at least 18 years old",
+      });
+    }
+
+    
+    user.dob = birthDate;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "DOB saved successfully",
+    });
+
+  } catch (err) {
+    console.error("SAVE DOB ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save DOB",
+      error: err.message,
+    });
+  }
 };
 
 
@@ -244,53 +268,58 @@ export const refreshTokenHandler = async (req, res) => {
 
 
 export const resendOTP = async (req, res) => {
-    console.log("🔥 RESEND OTP HIT"); 
-  try {
-    const { email } = req.body;
+    console.log("🔥 RESEND OTP HIT");
+    try {
+        const { email } = req.body;
 
-    // 🔐 Validation
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
+        // 🔐 Validation
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // ⛔ Prevent spam (30 sec rule)
+        if (user.otpExpiry) {
+            const otpSentAt = user.otpExpiry - 5 * 60 * 1000; // OTP kab bheja
+            const secondsSinceSent = (Date.now() - otpSentAt) / 1000; // kitne second guzre
+
+            if (secondsSinceSent < 30) {
+                return res.status(429).json({
+                    message: "Please wait before requesting OTP again",
+                });
+            }
+        }
+
+        // 🔢 Generate OTP
+        const otp = generateOTP();
+
+        user.otp = otp;
+        user.otpExpiry = Date.now() + 5 * 60 * 1000;
+
+        await user.save();
+
+        // 📧 Send email
+        await sendOTPEmail(email, otp);
+
+        console.log("RESEND OTP HIT");
+
+        return res.status(200).json({
+            success: true,
+            message: "OTP resent successfully",
+        });
+
+    } catch (err) {
+        console.error("RESEND OTP ERROR FULL:", err);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to resend OTP",
+            error: err.message,
+        });
     }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // ⛔ Prevent spam (30 sec rule)
-    if (user.otpExpiry && user.otpExpiry > Date.now() - 30 * 1000) {
-      return res.status(429).json({
-        message: "Please wait before requesting OTP again",
-      });
-    }
-
-    // 🔢 Generate OTP
-    const otp = generateOTP();
-
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
-
-    await user.save();
-
-    // 📧 Send email
-    await sendOTPEmail(email, otp);
-
-    console.log("RESEND OTP HIT");
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP resent successfully",
-    });
-
-  } catch (err) {
-    console.error("RESEND OTP ERROR FULL:", err);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to resend OTP",
-      error: err.message,
-    });
-  }
 };

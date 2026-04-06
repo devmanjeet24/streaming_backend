@@ -1,15 +1,23 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ path: "./.env" });
+// dotenv.config();
 
 import express from "express";
+import cors from "cors";
 
 import connectDB from "./src/config/db.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 
-// ✅ FIXED
+
 const app = express();
 
+app.use(cors({
+  origin: "*", 
+}));
+
+
+console.log("ENV CHECK:", process.env.CLOUD_NAME);
 
 // Middleware
 app.use(express.json());
