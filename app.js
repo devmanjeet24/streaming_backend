@@ -11,6 +11,7 @@ import userRoutes from "./src/routes/user.routes.js";
 
 
 const app = express();
+const HOST = '116.202.210.102';
 
 app.use(cors({
   origin: "*", 

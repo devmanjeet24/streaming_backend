@@ -14,46 +14,38 @@ export const emailAuth = async (req, res) => {
     try {
         const { email } = req.body;
 
-        // ✅ Validation
-        if (!email) {
-            return res.status(400).json({ message: "Email is required" });
-        }
-
-        if (!email.includes("@")) {
-            return res.status(400).json({ message: "Invalid email" });
-        }
-
+        if (!email) return res.status(400).json({ message: "Email is required" });
+        if (!email.includes("@")) return res.status(400).json({ message: "Invalid email" });
         let user = await User.findOne({ email });
 
-        // ✅ Register if not exists
+        // ✅ Track karo new hai ya existing
+        const isNewUser = !user;
+
         if (!user) {
             user = await User.create({ email });
         }
 
-        // ✅ Generate OTP
         const otp = generateOTP().toString();
-
         user.otp = otp;
         user.otpExpiry = Date.now() + 5 * 60 * 1000;
-
         await user.save();
 
-        // ✅ Send Email
         await sendOTPEmail(email, otp);
+
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
         return res.status(200).json({
             success: true,
             message: "OTP sent successfully",
+            isNewUser, 
+            accessToken,
+            refreshToken,
         });
 
     } catch (err) {
         console.error("EMAIL AUTH ERROR:", err.message);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to send OTP",
-            error: err.message,
-        });
+        return res.status(500).json({ success: false, message: "Failed to send OTP", error: err.message });
     }
 };
 

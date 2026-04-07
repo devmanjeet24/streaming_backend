@@ -1,5 +1,5 @@
 import express from "express";
-import { updateProfile } from "../controllers/user.controller.js";
+import { getProfile, updateProfile } from "../controllers/user.controller.js";
 import { protect } from "../middlewares/auth.middleware.js";
 import { upload } from "../config/multer.js";
 
@@ -12,5 +12,7 @@ router.put(
   upload.single("avatar"),
   updateProfile
 );
+
+router.get("/profile", protect, getProfile);
 
 export default router;
