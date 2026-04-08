@@ -4,10 +4,14 @@ dotenv.config({ path: "./.env" });
 
 import express from "express";
 import cors from "cors";
+import http from "http";
+import { initSocket } from "./src/socket/socket.js";
 
 import connectDB from "./src/config/db.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
+import adminRoutes from "./src/routes/admin.routes.js";
+import streamRoutes from "./src/routes/stream.routes.js";
 
 
 const app = express();
@@ -30,13 +34,23 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/stream", streamRoutes);
 
 // DB
 await connectDB();
 
+const server = http.createServer(app);
+
+initSocket(server);
+
 // Server
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// app.listen(PORT, () => {
+//   console.log(`Server running on http://localhost:${PORT}`);
+// });
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
 });

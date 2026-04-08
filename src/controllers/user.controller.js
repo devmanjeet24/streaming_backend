@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import StreamerRequest from "../models/streamerRequest.model.js";
 
 // UPDATE PROFILE (image + username)
 export const updateProfile = async (req, res) => {
@@ -71,6 +72,51 @@ export const getProfile = async (req, res) => {
     res.status(500).json({
       message: "Failed to fetch profile",
       error: err.message,
+    });
+  }
+};
+
+
+export const requestStreamer = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const existing = await StreamerRequest.findOne({
+      user: userId,
+      status: "pending",
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Request already pending",
+      });
+    }
+
+    const request = await StreamerRequest.create({
+      user: userId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Streamer request submitted",
+      data: request,
+    });
+
+  } catch (error) {
+    console.error("REQUEST STREAMER ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send request",
+      error: error.message,
     });
   }
 };
