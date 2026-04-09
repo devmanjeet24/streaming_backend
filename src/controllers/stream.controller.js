@@ -35,11 +35,12 @@ export const createStreamToken = async (req, res) => {
     at.addGrant({
       roomJoin: true,
       room: roomName,
-      canPublish: isStreamer,   // 🎙 streamer hi publish karega
+      canPublish: isStreamer,
       canSubscribe: true,
     });
 
-    const token = at.toJwt();
+    /// 🔥 FIX: await lagana zaroori hai
+    const token = await at.toJwt();
 
     return res.status(200).json({
       success: true,
