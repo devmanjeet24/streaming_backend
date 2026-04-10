@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import User from "../models/user.model.js";
 
-export const protect = (req, res, next) => {
+export const protect = async (req, res, next) => {
   try {
     const auth = req.headers.authorization;
     console.log("AUTH HEADER:", auth);
@@ -12,15 +13,19 @@ export const protect = (req, res, next) => {
       return res.status(401).json({ message: "No token" });
     }
 
-    console.log("SECRET:", process.env.ACCESS_SECRET);
+    
 
     const decoded = jwt.verify(token, process.env.ACCESS_SECRET);
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
     console.log("DECODED:", decoded);
-    req.user = decoded;
+    req.user = user;
 
     next();
   } catch (err) {
-    console.log("JWT ERROR:", err.message); // 👈 THIS WILL REVEAL TRUTH
+    console.log("JWT ERROR:", err.message); 
     return res.status(401).json({ message: "Unauthorized", error: err.message });
   }
 };

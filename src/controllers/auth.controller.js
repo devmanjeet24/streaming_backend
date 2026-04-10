@@ -32,19 +32,17 @@ export const emailAuth = async (req, res) => {
 
         await sendOTPEmail(email, otp);
 
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
+
 
         return res.status(200).json({
             success: true,
             message: "OTP sent successfully",
             isNewUser, 
-            accessToken,
-            refreshToken,
+
         });
 
     } catch (err) {
-        console.error("EMAIL AUTH ERROR:", err.message);
+        
         return res.status(500).json({ success: false, message: "Failed to send OTP", error: err.message });
     }
 };

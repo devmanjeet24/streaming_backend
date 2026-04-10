@@ -39,7 +39,7 @@ export const createStreamToken = async (req, res) => {
       canSubscribe: true,
     });
 
-    /// 🔥 FIX: await lagana zaroori hai
+    
     const token = await at.toJwt();
 
     return res.status(200).json({
@@ -47,6 +47,7 @@ export const createStreamToken = async (req, res) => {
       token,
       roomName,
       isStreamer,
+      avatar: user.avatar ?? "",
     });
 
   } catch (error) {
