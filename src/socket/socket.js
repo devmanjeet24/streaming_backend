@@ -24,7 +24,9 @@ export const initSocket = (server) => {
 
       /// 👀 VIEWER COUNT
       if (!rooms[roomId]) rooms[roomId] = 0;
-      rooms[roomId]++;
+      if (!isStreamer) {
+        rooms[roomId]++;
+      }
 
       /// 🎥 STREAMER TRACK
       const isStreamerUser = isStreamer === true;
@@ -84,9 +86,14 @@ export const initSocket = (server) => {
       console.log("🔴 User disconnected:", socket.id);
 
       // viewer count update
-      for (let roomId in rooms) {
-        rooms[roomId] = Math.max(0, rooms[roomId] - 1);
-        io.to(roomId).emit("viewer-count", rooms[roomId]);
+      const isDisconnectedStreamer = Object.values(streamers)
+        .some(s => s.socketId === socket.id);
+
+      if (!isDisconnectedStreamer) {
+        for (let roomId in rooms) {
+          rooms[roomId] = Math.max(0, rooms[roomId] - 1);
+          io.to(roomId).emit("viewer-count", rooms[roomId]);
+        }
       }
 
       // streamer remove — rooms loop se BAHAR
