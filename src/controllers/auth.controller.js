@@ -37,12 +37,12 @@ export const emailAuth = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "OTP sent successfully",
-            isNewUser, 
+            isNewUser,
 
         });
 
     } catch (err) {
-        
+
         return res.status(500).json({ success: false, message: "Failed to send OTP", error: err.message });
     }
 };
@@ -158,66 +158,66 @@ export const verifyOTP = async (req, res) => {
 
 
 export const saveDOB = async (req, res) => {
-  try {
-    const { dob } = req.body;
-    const userId = req.user?.id;
+    try {
+        const { dob } = req.body;
+        const userId = req.user?.id;
 
-    // ✅ Validation
-    if (!dob) {
-      return res.status(400).json({ message: "DOB is required" });
+        // ✅ Validation
+        if (!dob) {
+            return res.status(400).json({ message: "DOB is required" });
+        }
+
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // ✅ Convert DOB
+        const birthDate = new Date(dob);
+        const today = new Date();
+
+        if (isNaN(birthDate)) {
+            return res.status(400).json({ message: "Invalid DOB format" });
+        }
+
+        // ✅ Age calculation
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+
+        if (age < 18) {
+            return res.status(400).json({
+                message: "You must be at least 18 years old",
+            });
+        }
+
+
+        user.dob = birthDate;
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "DOB saved successfully",
+        });
+
+    } catch (err) {
+        console.error("SAVE DOB ERROR:", err);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to save DOB",
+            error: err.message,
+        });
     }
-
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // ✅ Convert DOB
-    const birthDate = new Date(dob);
-    const today = new Date();
-
-    if (isNaN(birthDate)) {
-      return res.status(400).json({ message: "Invalid DOB format" });
-    }
-
-    // ✅ Age calculation
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    
-    if (age < 18) {
-      return res.status(400).json({
-        message: "You must be at least 18 years old",
-      });
-    }
-
-    
-    user.dob = birthDate;
-    await user.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "DOB saved successfully",
-    });
-
-  } catch (err) {
-    console.error("SAVE DOB ERROR:", err);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to save DOB",
-      error: err.message,
-    });
-  }
 };
 
 
@@ -240,9 +240,17 @@ export const refreshTokenHandler = async (req, res) => {
 
         const newAccessToken = generateAccessToken(user);
 
+        // ✅ NEW REFRESH TOKEN GENERATE KAR
+        const newRefreshToken = generateRefreshToken(user);
+
+        // ✅ DB me update kar
+        user.refreshToken = newRefreshToken;
+        await user.save();
+
         return res.status(200).json({
             success: true,
             accessToken: newAccessToken,
+            refreshToken: newRefreshToken, // ✅ important
         });
 
     } catch (err) {

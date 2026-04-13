@@ -1,7 +1,10 @@
 import Stripe from "stripe";
 import Coin from "../models/coin.model.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET);
+// const stripe = new Stripe(process.env.STRIPE_SECRET);
+const stripe = process.env.STRIPE_SECRET 
+  ? new Stripe(process.env.STRIPE_SECRET) 
+  : null;
 
 // Coin packages
 const PACKAGES = [
