@@ -12,6 +12,8 @@ import authRoutes from "./src/routes/auth.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 import adminRoutes from "./src/routes/admin.routes.js";
 import streamRoutes from "./src/routes/stream.routes.js";
+import coinRoutes from "./src/routes/coin.routes.js";
+import giftRoutes from "./src/routes/gift.routes.js";
 
 
 const app = express();
@@ -36,6 +38,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/stream", streamRoutes);
+app.use("/api/coins", coinRoutes);
+app.use("/api/gifts", giftRoutes);
 
 // DB
 await connectDB();

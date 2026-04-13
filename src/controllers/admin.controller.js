@@ -3,14 +3,17 @@ import StreamerRequest from "../models/streamerRequest.model.js";
 import jwt from "jsonwebtoken";
 
 /// 🔐 ADMIN LOGIN (simple env based)
+
+// backen mai password ka code add kiya hai, toh frontend mai abhi error ayega,
+
 export const adminLogin = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, password } = req.body;
 
-    if (!email) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email required",
+        message: "Email and password required",
       });
     }
 
@@ -20,6 +23,15 @@ export const adminLogin = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Access denied",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
       });
     }
 
@@ -72,7 +84,7 @@ export const getRequests = async (req, res) => {
 };
 
 
-/// ✅ APPROVE REQUEST
+///  APPROVE REQUEST
 export const approveRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -121,7 +133,7 @@ export const approveRequest = async (req, res) => {
 };
 
 
-/// ❌ REJECT REQUEST
+/// REJECT REQUEST
 export const rejectRequest = async (req, res) => {
   try {
     const { id } = req.params;
