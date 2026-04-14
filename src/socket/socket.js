@@ -4,104 +4,139 @@ let io;
 
 export const initSocket = (server) => {
   io = new Server(server, {
-    cors: {
-      origin: "*",
-    },
+    cors: { origin: "*" },
   });
 
-
-  const rooms = {};
-  const streamers = {};
+  const rooms = {};       // roomId → viewer count
+  const streamers = {};   // roomId → streamer info
+  const reactions = {};   // roomId → { likes, dislikes }
+  const socketRooms = {}; // socketId → roomId (track karo kaun kahan hai)
 
   io.on("connection", (socket) => {
-    console.log("🟢 User connected:", socket.id);
+    console.log("🟢 Connected:", socket.id);
 
-    /// 🔥 JOIN ROOM
+    // ✅ JOIN ROOM
     socket.on("join-room", ({ roomId, username, isStreamer, avatar }) => {
       if (!roomId || !username) return;
 
       socket.join(roomId);
+      socketRooms[socket.id] = { roomId, username, isStreamer: isStreamer === true };
 
-      /// 👀 VIEWER COUNT
       if (!rooms[roomId]) rooms[roomId] = 0;
-      if (!isStreamer) {
-        rooms[roomId]++;
-      }
 
-      /// 🎥 STREAMER TRACK
-      const isStreamerUser = isStreamer === true;
-
-      if (isStreamerUser) {
+      if (isStreamer === true) {
+        // Streamer join
         streamers[roomId] = {
           username,
-          viewers: rooms[roomId],
+          viewers: 0,
           roomId,
           socketId: socket.id,
           avatar: avatar ?? "",
         };
-
-        console.log("🔥 STREAMER ADDED:", streamers[roomId]);
-        console.log("📡 ALL STREAMERS:", streamers);
+        console.log("🎥 Streamer joined:", username, roomId);
+      } else {
+        // Viewer join
+        rooms[roomId]++;
+        if (streamers[roomId]) {
+          streamers[roomId].viewers = rooms[roomId];
+        }
+        console.log("👀 Viewer joined:", username, "viewers:", rooms[roomId]);
       }
 
-      console.log("📡 ALL STREAMERS:", streamers);
-
-      /// 🔥 SEND DATA
+      // Viewer count us room ko
       io.to(roomId).emit("viewer-count", rooms[roomId]);
 
+      // Updated streamer list sab ko
       io.emit("live-streamers", Object.values(streamers));
 
-      socket.to(roomId).emit("user-joined", {
-        user: username,
-        message: `${username} joined`,
-      });
-
-      console.log(` ${username} joined ${roomId}`);
+      socket.to(roomId).emit("user-joined", { user: username });
     });
 
-    socket.on("get-live-streamers", () => {
-      socket.emit("live-streamers", Object.values(streamers));
-    });
+    // ✅ LEAVE ROOM
+    socket.on("leave-room", ({ roomId, username }) => {
+      if (!roomId) return;
 
-    ///  MESSAGE
-    socket.on("send-message", ({ roomId, message, user }) => {
-      io.to(roomId).emit("receive-message", {
-        user,
-        message,
-        time: new Date(),
-      });
-    });
+      socket.leave(roomId);
+      delete socketRooms[socket.id];
 
-    ///  LIKE
-    socket.on("send-like", ({ roomId }) => {
-      io.to(roomId).emit("receive-like");
-    });
-
-    socket.on("send-reaction", ({ roomId, type }) => {
-      io.to(roomId).emit("receive-reaction", { type });
-    });
-
-    ///  DISCONNECT
-    socket.on("disconnect", () => {
-      console.log("🔴 User disconnected:", socket.id);
-
-      // viewer count update
-      const isDisconnectedStreamer = Object.values(streamers)
-        .some(s => s.socketId === socket.id);
-
-      if (!isDisconnectedStreamer) {
-        for (let roomId in rooms) {
+      if (streamers[roomId] && streamers[roomId].username === username) {
+        // Streamer ne leave kiya
+        delete streamers[roomId];
+        delete rooms[roomId];
+        delete reactions[roomId];
+        console.log("🗑 Streamer left:", roomId);
+        io.emit("streamer-offline", { roomId });
+        io.emit("live-streamers", Object.values(streamers));
+      } else {
+        // Viewer ne leave kiya
+        if (rooms[roomId] !== undefined) {
           rooms[roomId] = Math.max(0, rooms[roomId] - 1);
+          if (streamers[roomId]) {
+            streamers[roomId].viewers = rooms[roomId];
+            io.emit("live-streamers", Object.values(streamers));
+          }
           io.to(roomId).emit("viewer-count", rooms[roomId]);
         }
       }
 
-      // streamer remove — rooms loop se BAHAR
-      for (let roomId in streamers) {
-        if (streamers[roomId].socketId === socket.id) {
-          delete streamers[roomId];
-          console.log("🗑 Streamer removed:", roomId);
-          io.emit("live-streamers", Object.values(streamers));
+      socket.to(roomId).emit("user-left", { user: username });
+      console.log(`👋 ${username} left ${roomId}`);
+    });
+
+    // ✅ GET LIVE STREAMERS
+    socket.on("get-live-streamers", () => {
+      socket.emit("live-streamers", Object.values(streamers));
+    });
+
+    // ✅ MESSAGE
+    socket.on("send-message", ({ roomId, message, user }) => {
+      io.to(roomId).emit("receive-message", { user, message, time: new Date() });
+    });
+
+    // ✅ REACTION (like/dislike)
+    socket.on("send-reaction", ({ roomId, type }) => {
+      if (!reactions[roomId]) {
+        reactions[roomId] = { likes: 0, dislikes: 0 };
+      }
+      if (type === "like") {
+        reactions[roomId].likes++;
+      } else {
+        reactions[roomId].dislikes++;
+      }
+      io.to(roomId).emit("receive-reaction", {
+        type,
+        likes: reactions[roomId].likes,
+        dislikes: reactions[roomId].dislikes,
+      });
+    });
+
+    // ✅ DISCONNECT
+    socket.on("disconnect", () => {
+      console.log("🔴 Disconnected:", socket.id);
+
+      const info = socketRooms[socket.id];
+      if (!info) return;
+
+      const { roomId, username, isStreamer } = info;
+      delete socketRooms[socket.id];
+
+      if (isStreamer) {
+        // Streamer disconnect
+        delete streamers[roomId];
+        delete rooms[roomId];
+        delete reactions[roomId];
+        console.log("🗑 Streamer removed:", roomId);
+        io.emit("streamer-offline", { roomId });
+        io.emit("live-streamers", Object.values(streamers));
+      } else {
+        // Viewer disconnect
+        if (rooms[roomId] !== undefined) {
+          rooms[roomId] = Math.max(0, rooms[roomId] - 1);
+          if (streamers[roomId]) {
+            streamers[roomId].viewers = rooms[roomId];
+            io.emit("live-streamers", Object.values(streamers));
+          }
+          io.to(roomId).emit("viewer-count", rooms[roomId]);
         }
       }
     });

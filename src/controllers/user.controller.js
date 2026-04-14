@@ -120,3 +120,13 @@ export const requestStreamer = async (req, res) => {
     });
   }
 };
+
+export const getAllStreamers = async (req, res) => {
+  try {
+    const streamers = await User.find({ role: "streamer" })
+      .select("username avatar role");
+    res.json({ success: true, streamers });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
