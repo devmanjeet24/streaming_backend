@@ -7,8 +7,8 @@ export const initSocket = (server) => {
     cors: { origin: "*" },
   });
 
-  const rooms = {};       // roomId → viewer count
-  const streamers = {};   // roomId → streamer info
+  const rooms = {};       
+  const streamers = {};   
   const reactions = {};   // roomId → { likes, dislikes }
   const socketRooms = {}; // socketId → roomId (track karo kaun kahan hai)
 

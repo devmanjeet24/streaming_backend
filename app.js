@@ -1,13 +1,12 @@
 import dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
-// dotenv.config();
 
 import express from "express";
 import cors from "cors";
 import http from "http";
 import { initSocket } from "./src/socket/socket.js";
-
 import connectDB from "./src/config/db.js";
+import { seedGifts } from "./src/config/gifts.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 import adminRoutes from "./src/routes/admin.routes.js";
@@ -15,24 +14,19 @@ import streamRoutes from "./src/routes/stream.routes.js";
 import coinRoutes from "./src/routes/coin.routes.js";
 import giftRoutes from "./src/routes/gift.routes.js";
 
-
 const app = express();
-const HOST = '116.202.210.102';
 
-app.use(cors({
-  origin: "*", 
-}));
-
+app.use(cors({ origin: "*" }));
 
 console.log("ENV CHECK:", process.env.CLOUD_NAME);
+
+// ✅ Webhook PEHLE — raw body chahiye, express.json() se pehle
+app.use("/api/coins/webhook", express.raw({ type: "application/json" }));
 
 // Middleware
 app.use(express.json());
 
-
-app.get("/", (req, res) => {
-  res.json({message : "hey"})
-})
+app.get("/", (req, res) => res.json({ message: "hey" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
@@ -41,20 +35,13 @@ app.use("/api/stream", streamRoutes);
 app.use("/api/coins", coinRoutes);
 app.use("/api/gifts", giftRoutes);
 
-// DB
 await connectDB();
+await seedGifts();
 
 const server = http.createServer(app);
-
 initSocket(server);
 
-// Server
 const PORT = process.env.PORT || 5000;
-
-// app.listen(PORT, () => {
-//   console.log(`Server running on http://localhost:${PORT}`);
-// });
-
 server.listen(PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

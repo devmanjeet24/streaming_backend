@@ -1,10 +1,9 @@
+// import bcrypt from "bcryptjs";
 import User from "../models/user.model.js";
 import StreamerRequest from "../models/streamerRequest.model.js";
 import jwt from "jsonwebtoken";
 
-/// 🔐 ADMIN LOGIN (simple env based)
 
-// backen mai password ka code add kiya hai, toh frontend mai abhi error ayega,
 
 export const adminLogin = async (req, res) => {
   try {
@@ -17,18 +16,22 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-    if (!user || user.role !== "admin") {
+    console.log("ENV EMAIL:", process.env.ADMIN_EMAIL);
+console.log("ENV PASSWORD:", process.env.ADMIN_PASSWORD);
+
+    // Email check
+    if (email !== ADMIN_EMAIL) {
       return res.status(403).json({
         success: false,
         message: "Access denied",
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
+    // Password check
+    if (password !== ADMIN_PASSWORD) {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials",
@@ -36,7 +39,7 @@ export const adminLogin = async (req, res) => {
     }
 
     const accessToken = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: "admin", role: "admin" },
       process.env.ACCESS_SECRET,
       { expiresIn: "15m" }
     );
