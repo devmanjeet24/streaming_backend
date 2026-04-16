@@ -7,8 +7,8 @@ export const initSocket = (server) => {
     cors: { origin: "*" },
   });
 
-  const rooms = {};       
-  const streamers = {};   
+  const rooms = {};
+  const streamers = {};
   const reactions = {};   // roomId → { likes, dislikes }
   const socketRooms = {}; // socketId → roomId (track karo kaun kahan hai)
 
@@ -25,17 +25,15 @@ export const initSocket = (server) => {
       if (!rooms[roomId]) rooms[roomId] = 0;
 
       if (isStreamer === true) {
-        // Streamer join
         streamers[roomId] = {
           username,
-          viewers: 0,
+          viewers: rooms[roomId], // ✅ current viewers se start
           roomId,
           socketId: socket.id,
           avatar: avatar ?? "",
         };
         console.log("🎥 Streamer joined:", username, roomId);
       } else {
-        // Viewer join
         rooms[roomId]++;
         if (streamers[roomId]) {
           streamers[roomId].viewers = rooms[roomId];
