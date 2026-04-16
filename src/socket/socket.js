@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import Message from "../models/message.model.js";
 
 let io;
 
@@ -87,9 +88,15 @@ export const initSocket = (server) => {
     });
 
     // ✅ MESSAGE
-    socket.on("send-message", ({ roomId, message, user }) => {
-      io.to(roomId).emit("receive-message", { user, message, time: new Date() });
-    });
+// ✅ MESSAGE
+socket.on("send-message", ({ roomId, message, user }) => {
+  io.to(roomId).emit("receive-message", { user, message, time: new Date() });
+
+  // ✅ DB mein save karo
+  Message.create({ roomId, user, message }).catch(err =>
+    console.error("Message save error:", err)
+  );
+});
 
     // ✅ REACTION (like/dislike)
     socket.on("send-reaction", ({ roomId, type }) => {
