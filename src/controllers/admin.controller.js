@@ -20,7 +20,7 @@ export const adminLogin = async (req, res) => {
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
     console.log("ENV EMAIL:", process.env.ADMIN_EMAIL);
-console.log("ENV PASSWORD:", process.env.ADMIN_PASSWORD);
+    console.log("ENV PASSWORD:", process.env.ADMIN_PASSWORD);
 
     // Email check
     if (email !== ADMIN_EMAIL) {
@@ -110,7 +110,11 @@ export const approveRequest = async (req, res) => {
     }
 
     request.status = "approved";
-    request.reviewedBy = adminId;
+
+    if (adminId && adminId !== "admin") {
+      request.reviewedBy = adminId;
+    }
+
     request.reviewedAt = new Date();
 
     await request.save();
@@ -159,7 +163,11 @@ export const rejectRequest = async (req, res) => {
     }
 
     request.status = "rejected";
-    request.reviewedBy = adminId;
+
+    if (adminId && adminId !== "admin") {
+      request.reviewedBy = adminId;
+    }
+
     request.reviewedAt = new Date();
 
     await request.save();
